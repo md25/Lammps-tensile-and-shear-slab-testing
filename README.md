@@ -17,7 +17,7 @@ This repository contains scripts and input files for performing tensile and shea
 
 - [LAMMPS](https://lammps.sandia.gov/) installed on your system
 - [ASE (Atomic Simulation Environment)](https://wiki.fysik.dtu.dk/ase/) for structure generation
-- Python 3.x for data processing scripts (if provided)
+
 
 
 
