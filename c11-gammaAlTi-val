@@ -1,0 +1,55 @@
+
+
+clear
+units metal
+atom_style atomic
+boundary p p p
+read_data gamma_tial.data
+replicate 10 10 10
+pair_style meam
+pair_coeff * * kim_library.meam Al Ti kim_AlTi.meam Al Ti
+neighbor 2.0 bin
+neigh_modify every 1 delay 0 check yes
+
+thermo 100
+thermo_style custom step pe pxx pyy pzz pxy pxz pyz press
+fix 1 all box/relax aniso 0.0
+minimize 1.0e-50 1.0e-50 10000 100000
+unfix 1
+
+
+#Store Initial State
+variable Lxx0 equal "lx"
+variable Lyy0 equal "ly"
+variable Lzz0 equal "lz"
+variable Lxy0 equal "xy"
+variable Lxz0 equal "xz"
+variable Lyz0 equal "yz"
+print "--- Stored initial box dimensions ---"
+variable GPa equal 10000 
+min_style cg
+min_modify dmax 0.1
+variable p_current equal pxx
+
+print "C11 Calc Starting"
+variable delta equal 0.0001
+variable delta2 equal "v_delta * 1.0" # so tried with  *2 for fdm bu always got half the value so i checked and found not to do it.
+
+# Apply  strain
+change_box all x scale $(1.0+v_delta) remap
+minimize 1.0e-50 1.0e-50 5000 50000
+variable p1_p equal ${p_current}
+# Reset box
+change_box all triclinic x final 0 ${Lxx0} y final 0 ${Lyy0} z final 0 ${Lzz0} xy final ${Lxy0} xz final ${Lxz0} yz final ${Lyz0} remap
+# Apply negative strain
+change_box all x scale $(1.0-v_delta) remap
+minimize 1.0e-50 1.0e-50 5000 50000
+variable p1_n equal ${p_current}
+
+#Reset box
+change_box all triclinic x final 0 ${Lxx0} y final 0 ${Lyy0} z final 0 ${Lzz0} xy final ${Lxy0} xz final ${Lxz0} yz final ${Lyz0} remap
+
+variable C11 equal "(v_p1_n - v_p1_p) / v_delta2 / v_GPa"
+print "--- RESULT for delta = ${delta}: C11 = ${C11} GPa ---"
+
+

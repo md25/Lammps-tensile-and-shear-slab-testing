@@ -1,0 +1,51 @@
+clear
+units           metal
+atom_style      atomic
+boundary        p p f 
+read_data       equi_no_defect_300.data
+pair_style      meam
+pair_coeff      * * kim_library.meam Al Ti kim_AlTi.meam Al Ti
+neighbor        2.0 bin
+neigh_modify    every 2
+timestep        0.001
+
+variable        z_min equal "bound(all,zmin)"
+variable        z_max equal "bound(all,zmax)"
+variable        L0 equal "v_z_max - v_z_min" 
+print           "Initial Height, L0: ${L0}"
+
+variable        fixed_hi equal "v_z_min + 4.0"   
+variable        top_lo equal "v_z_max - 4.0"  
+
+region          bottom block INF INF INF INF v_z_min v_fixed_hi #So many INF *sigh*
+region          top block INF INF INF INF v_top_lo v_z_max
+region          mobile block INF INF INF INF v_fixed_hi v_top_lo 
+
+group           bottom region bottom
+group           top region top
+group           mobile region mobile
+
+#Strain Rate & Velocity
+variable        my_dt equal 0.001
+variable        total_steps equal 500000
+variable        target_shear_strain equal 0.005
+variable        vel_shear_x equal "v_target_shear_strain * v_L0 / (v_total_steps * v_my_dt)"
+
+print           "Calculated vel_shear_x for ${target_shear_strain} shear strain at ${total_steps} steps: ${vel_shear_x}"
+
+reset_timestep  0
+fix 1 mobile nvt temp 300.0 300.0 0.1
+fix 2 bottom setforce 0.0 0.0 0.0  
+fix 3 top move linear ${vel_shear_x} 0.0 0.0
+variable shear_stress_gpa equal "-pxz/10000"
+variable shear_strain equal "(v_vel_shear_x * step * v_my_dt) / v_L0"
+
+fix stress_curve all print 100 "${shear_strain} ${shear_stress_gpa}" file shear_stress_300K.txt screen no
+
+thermo 100
+thermo_style custom step v_shear_strain v_shear_stress_gpa temp pxz press
+dump 1 all custom 100 300k_shear.lammpstrj id type x y z
+dump_modify 1 sort id
+
+run             ${total_steps}
+print "All done"

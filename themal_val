@@ -1,0 +1,45 @@
+
+
+clear
+units            metal
+atom_style       atomic
+boundary         p p p
+read_data        gamma_tial.data
+replicate        15 15 15
+pair_style       meam
+pair_coeff       * * kim_library.meam Al Ti kim_AlTi.meam Al Ti
+neighbor         2.0 bin
+neigh_modify     every 1
+
+#Parameters
+timestep         0.001
+variable T_target equal 250.0 
+variable P_atm equal 1.0     
+
+thermo           100
+variable eatom equal "etotal/count(all)"
+thermo_style     custom step temp press enthalpy vol v_eatom pe
+minimize 1.0e-30 1.0e-30 5000 10000
+fix 1 all box/relax iso ${P_atm}
+minimize 1.0e-30 1.0e-30 5000 10000
+unfix 1
+reset_timestep 0
+
+#Equilibration 
+print "Starting Equilibration at ${T_target} K"
+variable Tdamp equal 0.1     
+variable Pdamp equal 1.0    
+velocity         all create ${T_target} 4928459 dist gaussian
+fix              1 all npt temp ${T_target} ${T_target} ${Tdamp} iso ${P_atm} ${P_atm} ${Pdamp}
+run              1500
+
+unfix 1
+reset_timestep 0
+#Maintain Target temp for calc.
+fix 1 all npt temp ${T_target} ${T_target} ${Tdamp} iso ${P_atm} ${P_atm} ${Pdamp}
+fix 2 all ave/time 20 50 1000 v_eatom  #sample every 2 steps, 50 times, output at step 100. I hope my math is mathing.
+run 1000
+print "VALIDATION COMPLETE at T = ${T_target} K"
+print "Average Internal Energy = $(f_2) eV/atom"
+unfix 1
+unfix 2

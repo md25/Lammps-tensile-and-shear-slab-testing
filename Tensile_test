@@ -1,0 +1,47 @@
+
+
+clear
+units            metal
+atom_style       atomic
+boundary         p p s
+read_data        equi_no_defect_300.data
+pair_style       meam
+pair_coeff       * * kim_library.meam Al Ti kim_AlTi.meam Al Ti
+neighbor         2.0 bin
+neigh_modify     every 2
+timestep         0.001
+#Store Initial Box Length. All the files are lready equilibrated btw
+variable         z_min equal "bound(all,zmin)"
+variable         z_max equal "bound(all,zmax)"
+variable         L0 equal "v_z_max - v_z_min"
+print            "Initial Length, L0: ${L0}"
+#Define Regions. The + and - 4 are top and bottom slab thickness
+variable         fixed_hi equal "v_z_min + 4.0"
+variable         loading_lo equal "v_z_max - 4.0"
+region           bottom block INF INF INF INF v_z_min v_fixed_hi
+region           top block INF INF INF INF v_loading_lo v_z_max
+region           mobile block INF INF INF INF v_fixed_hi v_loading_lo
+group            bottom region bottom
+group            top region top
+group            mobile region mobile
+#Define Strain Rate & Velocity 
+variable         my_dt equal 0.001
+variable         total_steps equal 50000
+variable         target_strain equal 0.2
+variable         vel_top equal "v_target_strain * v_L0 / (v_total_steps * v_my_dt)"
+
+reset_timestep   0
+fix 1 mobile nvt temp 300.0 300.0 0.1
+fix 2 bottom setforce 0.0 0.0 0.0 
+velocity         top set 0.0 0.0 ${vel_top}
+fix              3 top move linear 0.0 0.0 ${vel_top}
+
+variable stress_gpa equal "-pzz/10000"
+variable strain equal "(v_vel_top * step * v_my_dt) / v_L0"
+fix stress_curve all print 100 "${strain} ${stress_gpa}" file 300K_no_def.txt screen no
+
+thermo 100
+thermo_style custom step v_strain v_stress_gpa temp pzz press
+dump 1 all custom 100 300k_no_def.lammpstrj id type x y z
+dump_modify 1 sort id
+run              ${total_steps}
